@@ -1,145 +1,148 @@
-#include <vector>
-#include <cmath>
-#include <algorithm>
-// TERADATA
-
+#include <bits/stdc++.h>
 using namespace std;
 
-const int MAXN = 100005;
-const int LOG = 20;
+class solution {
+public:
 
-// Global variables
-vector<int> adj[MAXN];
-int up[MAXN][LOG];
-int depth[MAXN];
-long long ans[MAXN]; // Note: ans needs to be long long to prevent overflow from large query values
+    int LOG;
 
-void dfs(int node, int parent) {
-    up[node][0] = parent;
+    vector<vector<int>> adj;
+    vector<vector<int>> up;
+    vector<int> depth;
+    vector<long long> diff;
 
-    for (int child : adj[node]) {
-        if (child == parent)
-            continue;
+    void dfs(int u, int parent) {
 
-        depth[child] = depth[node] + 1;
-        dfs(child, node);
+        up[0][u] = parent;
+
+        for(int j = 1; j < LOG; j++) {
+            up[j][u] = up[j - 1][up[j - 1][u]];
+        }
+
+        for(int v : adj[u]) {
+
+            if(v == parent)
+                continue;
+
+            depth[v] = depth[u] + 1;
+
+            dfs(v, u);
+        }
     }
-}
 
-void build(int n) {
-    dfs(1, -1);
+    int lca(int u, int v) {
 
-    for (int j = 1; j < LOG; j++) {
-        for (int i = 1; i <= n; i++) {
-            if (up[i][j - 1] != -1) {
-                up[i][j] = up[up[i][j - 1]][j - 1];
+        // Make u the deeper node
+        if(depth[u] < depth[v])
+            swap(u, v);
+
+        // Bring u to same depth as v
+        int difference = depth[u] - depth[v];
+
+        for(int j = 0; j < LOG; j++) {
+
+            if(difference & (1 << j)) {
+                u = up[j][u];
             }
         }
+
+        if(u == v)
+            return u;
+
+        // Lift both nodes
+        for(int j = LOG - 1; j >= 0; j--) {
+
+            if(up[j][u] != up[j][v]) {
+
+                u = up[j][u];
+                v = up[j][v];
+            }
+        }
+
+        return up[0][u];
     }
-}
 
-int getKthAncestor(int node, int k) {
-    for (int j = 0; j < LOG; j++) {
-        if (k & (1 << j)) {
-            node = up[node][j];
+    void accumulate(int u, int parent, vector<long long>& a) {
 
-            if (node == -1)
-                return -1;
+        for(int v : adj[u]) {
+
+            if(v == parent)
+                continue;
+
+            accumulate(v, u, a);
+
+            diff[u] += diff[v];
         }
     }
 
-    return node;
-}
+    long long partyGapAfterUpdates(
+        int n,
+        vector<long long>& a,
+        vector<vector<int>>& edges,
+        vector<vector<long long>>& queries
+    ) {
 
-int lca(int u, int v) {
-    // Make depths equal
-    if (depth[u] > depth[v]) {
-        u = getKthAncestor(u, depth[u] - depth[v]);
-    }
-    else {
-        v = getKthAncestor(v, depth[v] - depth[u]);
-    }
+        adj.assign(n + 1, {});
 
-    if (u == v)
-        return u;
+        // Build tree
+        for(auto e : edges) {
 
-    // Lift both nodes
-    for (int j = LOG - 1; j >= 0; j--) {
-        if (up[u][j] != -1 && up[v][j] != -1 && up[u][j] != up[v][j]) {
-            u = up[u][j];
-            v = up[v][j];
+            int u = e[0];
+            int v = e[1];
+
+            adj[u].push_back(v);
+            adj[v].push_back(u);
         }
-    }
 
-    return up[u][0];
-}
+        // log2(n)
+        LOG = 1;
 
-void dfsSum(int node, int parent) {
-    for (int child : adj[node]) {
-        if (child == parent)
-            continue;
+        while((1 << LOG) <= n)
+            LOG++;
 
-        dfsSum(child, node);
+        up.assign(LOG, vector<int>(n + 1, 0));
+        depth.assign(n + 1, 0);
+        diff.assign(n + 1, 0);
 
-        ans[node] += ans[child];
-    }
-}
+        // Root tree at node 1
+        dfs(1, 0);
 
-long long solve(int N, vector<int> &A, vector<vector<int>> &edges, vector<vector<int>> &queries) {
-    // CRITICAL: Reset global variables for multiple test case environments
-    for (int i = 0; i <= N; i++) {
-        adj[i].clear();
-        depth[i] = 0;
-        ans[i] = 0;
-        for (int j = 0; j < LOG; j++) {
-            up[i][j] = -1;
+        // Process queries
+        for(auto q : queries) {
+
+            int u = q[0];
+            int v = q[1];
+
+            long long x = q[2];
+
+            int L = lca(u, v);
+
+            diff[u] += x;
+            diff[v] += x;
+
+            diff[L] -= x;
+
+            // Remove contribution from above LCA
+            if(up[0][L] != 0)
+                diff[up[0][L]] -= x;
         }
-    }
 
-    // Build adjacency list
-    for (auto &e : edges) {
-        int u = e[0];
-        int v = e[1];
-        adj[u].push_back(v);
-        adj[v].push_back(u);
-    }
+        // Accumulate updates from children to parents
+        accumulate(1, 0, a);
 
-    // Binary lifting preprocessing
-    build(N);
+        long long even = 0;
+        long long odd = 0;
 
-    // Process every query using Tree Difference Array
-    for (auto &q : queries) {
-        int u = q[0];
-        int v = q[1];
-        long long x = q[2];
+        for(int i = 1; i <= n; i++) {
 
-        int L = lca(u, v);
+            long long finalValue = a[i - 1] + diff[i];
 
-        ans[u] += x;
-        ans[v] += x;
-        ans[L] -= x;
-
-        if (up[L][0] != -1)
-            ans[up[L][0]] -= x;
-    }
-
-    // Accumulate from children to parents
-    dfsSum(1, -1);
-
-    long long sum_even = 0;
-    long long sum_odd = 0;
-
-    for (int i = 1; i <= N; i++) {
-        // A is 0-indexed, but tree nodes are 1-indexed
-        long long final_val = A[i - 1] + ans[i];
-        
-        // Proper negative modulo handling
-        if (abs(final_val) % 2 == 0) {
-            sum_even += final_val;
-        } else {
-            sum_odd += final_val;
+            if(finalValue % 2 == 0)
+                even += finalValue;
+            else
+                odd += finalValue;
         }
-    }
 
-    return abs(sum_even - sum_odd);
-}
+        return llabs(even - odd);
+    }
+};
