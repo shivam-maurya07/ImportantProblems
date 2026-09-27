@@ -1,48 +1,47 @@
 #include <bits/stdc++.h>
 using namespace std;
-
 class solution {
 public:
-
     int LOG;
-
     vector<vector<int>> adj;
     vector<vector<int>> up;
     vector<int> depth;
     vector<long long> diff;
 
-    void dfs(int u, int parent) {
+    void dfs(int node, int parent) {
 
-        up[0][u] = parent;
+        up[node][0] = parent;
 
+        // Binary lifting table
         for(int j = 1; j < LOG; j++) {
-            up[j][u] = up[j - 1][up[j - 1][u]];
+            up[node][j] =
+                up[up[node][j - 1]][j - 1];
         }
 
-        for(int v : adj[u]) {
+        for(int child : adj[node]) {
 
-            if(v == parent)
+            if(child == parent)
                 continue;
 
-            depth[v] = depth[u] + 1;
+            depth[child] = depth[node] + 1;
 
-            dfs(v, u);
+            dfs(child, node);
         }
     }
 
-    int lca(int u, int v) {
+    int LCA(int u, int v) {
 
         // Make u the deeper node
         if(depth[u] < depth[v])
             swap(u, v);
 
         // Bring u to same depth as v
-        int difference = depth[u] - depth[v];
+        int d = depth[u] - depth[v];
 
         for(int j = 0; j < LOG; j++) {
 
-            if(difference & (1 << j)) {
-                u = up[j][u];
+            if(d & (1 << j)) {
+                u = up[u][j];
             }
         }
 
@@ -52,26 +51,26 @@ public:
         // Lift both nodes
         for(int j = LOG - 1; j >= 0; j--) {
 
-            if(up[j][u] != up[j][v]) {
+            if(up[u][j] != up[v][j]) {
 
-                u = up[j][u];
-                v = up[j][v];
+                u = up[u][j];
+                v = up[v][j];
             }
         }
 
-        return up[0][u];
+        return up[u][0];
     }
 
-    void accumulate(int u, int parent, vector<long long>& a) {
+    void accumulate(int node, int parent) {
 
-        for(int v : adj[u]) {
+        for(int child : adj[node]) {
 
-            if(v == parent)
+            if(child == parent)
                 continue;
 
-            accumulate(v, u, a);
+            accumulate(child, node);
 
-            diff[u] += diff[v];
+            diff[node] += diff[child];
         }
     }
 
@@ -82,65 +81,64 @@ public:
         vector<vector<long long>>& queries
     ) {
 
-        adj.assign(n + 1, {});
+        LOG = log2(n) + 1;
+
+        // Resize everything
+        adj.resize(n + 1);
+        up.resize(n + 1);
+        depth.resize(n + 1);
+        diff.resize(n + 1);
+
+        for(int i = 0; i <= n; i++) {
+            up[i].resize(LOG);
+        }
 
         // Build tree
-        for(auto e : edges) {
+        for(auto &edge : edges) {
 
-            int u = e[0];
-            int v = e[1];
+            int u = edge[0];
+            int v = edge[1];
 
             adj[u].push_back(v);
             adj[v].push_back(u);
         }
 
-        // log2(n)
-        LOG = 1;
-
-        while((1 << LOG) <= n)
-            LOG++;
-
-        up.assign(LOG, vector<int>(n + 1, 0));
-        depth.assign(n + 1, 0);
-        diff.assign(n + 1, 0);
-
         // Root tree at node 1
         dfs(1, 0);
 
         // Process queries
-        for(auto q : queries) {
+        for(auto &q : queries) {
 
             int u = q[0];
             int v = q[1];
-
             long long x = q[2];
 
-            int L = lca(u, v);
+            int L = LCA(u, v);
 
             diff[u] += x;
             diff[v] += x;
 
             diff[L] -= x;
 
-            // Remove contribution from above LCA
-            if(up[0][L] != 0)
-                diff[up[0][L]] -= x;
+            if(up[L][0] != 0) {
+                diff[up[L][0]] -= x;
+            }
         }
 
-        // Accumulate updates from children to parents
-        accumulate(1, 0, a);
+        // Propagate updates from children to parents
+        accumulate(1, 0);
 
         long long even = 0;
         long long odd = 0;
 
         for(int i = 1; i <= n; i++) {
 
-            long long finalValue = a[i - 1] + diff[i];
+            long long value = a[i - 1] + diff[i];
 
-            if(finalValue % 2 == 0)
-                even += finalValue;
+            if(value % 2 == 0)
+                even += value;
             else
-                odd += finalValue;
+                odd += value;
         }
 
         return llabs(even - odd);
