@@ -95,25 +95,21 @@ vector<long long> bestRangeProfit(
     const vector<long long>& pnl,
     const vector<vector<int>>& queries) {
 
-    // Convert pnl to 1-indexed
-    vector<long long> arr(n + 1);
+    // Everything is zero-based now.
+    seg.assign(4 * n, vector<long long>(4, 0));
 
-    for (int i = 1; i <= n; i++) {
-        arr[i] = pnl[i - 1];
-    }
-
-    seg.resize(4 * n, vector<long long>(4));
-
-    build(0, 1, n, arr);
+    build(0, 0, n - 1, pnl);
 
     vector<long long> ans;
 
     for (auto q : queries) {
 
-        int x1 = q[0];
-        int y1 = q[1];
-        int x2 = q[2];
-        int y2 = q[3];
+        // Input query is 1-based.
+        // Convert everything to 0-based.
+        int x1 = q[0] - 1;
+        int y1 = q[1] - 1;
+        int x2 = q[2] - 1;
+        int y2 = q[3] - 1;
 
         long long max_pl = -INF;
 
@@ -123,11 +119,11 @@ vector<long long> bestRangeProfit(
         if (x1 <= x2 - 1 && y1 + 1 <= y2) {
 
             long long current =
-                query(0, x1, x2 - 1, 1, n)[2]
+                query(0, x1, x2 - 1, 0, n - 1)[2]
                 +
-                query(0, x2, y1, 1, n)[0]
+                query(0, x2, y1, 0, n - 1)[0]
                 +
-                query(0, y1 + 1, y2, 1, n)[1];
+                query(0, y1 + 1, y2, 0, n - 1)[1];
 
             max_pl = max(max_pl, current);
         }
@@ -138,9 +134,9 @@ vector<long long> bestRangeProfit(
         if (x1 <= x2 - 1) {
 
             long long current =
-                query(0, x1, x2 - 1, 1, n)[2]
+                query(0, x1, x2 - 1, 0, n - 1)[2]
                 +
-                query(0, x2, y1, 1, n)[1];
+                query(0, x2, y1, 0, n - 1)[1];
 
             max_pl = max(max_pl, current);
         }
@@ -151,9 +147,9 @@ vector<long long> bestRangeProfit(
         if (y1 + 1 <= y2) {
 
             long long current =
-                query(0, x2, y1, 1, n)[2]
+                query(0, x2, y1, 0, n - 1)[2]
                 +
-                query(0, y1 + 1, y2, 1, n)[1];
+                query(0, y1 + 1, y2, 0, n - 1)[1];
 
             max_pl = max(max_pl, current);
         }
@@ -162,7 +158,7 @@ vector<long long> bestRangeProfit(
         // Both i and j are inside [x2, y1]
         max_pl = max(
             max_pl,
-            query(0, x2, y1, 1, n)[3]
+            query(0, x2, y1, 0, n - 1)[3]
         );
 
         ans.push_back(max_pl);

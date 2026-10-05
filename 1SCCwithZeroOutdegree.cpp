@@ -55,7 +55,7 @@ class Solution {
         for(int i = 1; i <= n; i++){
             for(auto neg : adj[i]){
                 if(comp[neg] != comp[i]){
-                    out[comp[i]] = 1;
+                    out[comp[neg]] = 1;
                 }
             }
         }
